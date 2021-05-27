@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/Und3rMySk1n/party-bot#readme",
   "dependencies": {
+    "express": "^4.17.1",
     "telegraf": "^4.3.0"
   }
 }
