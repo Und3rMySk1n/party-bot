@@ -1,18 +1,20 @@
 const { Telegraf } = require('telegraf');
 const express = require('express');
+const PartyBot = require('./partybot/partybot')
 
-const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const PORT = process.env.PORT || 3000;
-const URL = process.env.URL || 'https://alko-party-bot.herokuapp.com/';
+const botToken = process.env.BOT_TOKEN || '';
+const appPort = process.env.PORT || 3000;
+const appUrl = process.env.URL || 'https://alko-party-bot.herokuapp.com/';
 
 const app = express();
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const bot = new Telegraf(botToken);
 
-bot.telegram.setWebhook(`${URL}/bot${BOT_TOKEN}`);
-app.use(bot.webhookCallback(`/bot${BOT_TOKEN}`));
+bot.telegram.setWebhook(`${appUrl}/bot${botToken}`);
+app.use(bot.webhookCallback(`/bot${botToken}`));
 
-bot.start((ctx) => ctx.reply('Hello from party bot! Lets get drunk!'));
-bot.launch();
+const partyBot = new PartyBot(bot);
+partyBot.init();
+
 
 // Enable graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
@@ -20,10 +22,10 @@ process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
 /* Starting server */
 app.get('/', (req, res) => {
-    res.send('Hello World!');
+    res.send('Hello from party bot! Add PartyAlkoBot to your telegram chat and start getting fun!');
 });
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+app.listen(appPort, () => {
+    console.log(`Server running on port ${appPort}`);
 });
 
 
