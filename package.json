@@ -1,0 +1,20 @@
+{
+  "name": "party-bot",
+  "version": "1.0.0",
+  "description": "This bot will turn your meeting to great party or will ruin it.",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot", 
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Und3rMySk1n/party-bot.git"
+  },
+  "author": "und3rmysk1n",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Und3rMySk1n/party-bot/issues"
+  },
+  "homepage": "https://github.com/Und3rMySk1n/party-bot#readme"
+}
