@@ -1,4 +1,4 @@
-import { Markup } from 'telegraf';
+const { Markup } = require('telegraf');
 
 module.exports = class PartyBot {
     constructor(telegraf) {
