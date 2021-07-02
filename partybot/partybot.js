@@ -19,6 +19,6 @@ module.exports = class PartyBot {
     getMainMenu() {
         return Markup.keyboard([
             ['Пользователи', 'Добавить напиток'],
-        ]).resize().extra()
+        ]).resize();
     }
 }
