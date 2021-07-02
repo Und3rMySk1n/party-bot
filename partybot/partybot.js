@@ -1,3 +1,5 @@
+import {inlineKeyboard} from "telegraf/src/markup";
+
 const { Markup } = require('telegraf');
 
 module.exports = class PartyBot {
@@ -17,7 +19,7 @@ module.exports = class PartyBot {
     }
     
     getMainMenu() {
-        return Markup.keyboard([
+        return Markup.inlineKeyboard([
             ['Пользователи', 'Добавить напиток'],
         ]).resize();
     }
