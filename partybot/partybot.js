@@ -18,7 +18,7 @@ module.exports = class PartyBot {
     
     getMainMenu() {
         return Markup.inlineKeyboard([
-            ['Пользователи', 'Добавить напиток'],
+            [{text: 'Пользователи'}, {text: 'Добавить напиток'}],
         ]).resize();
     }
 }
