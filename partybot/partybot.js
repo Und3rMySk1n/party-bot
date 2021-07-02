@@ -1,6 +1,6 @@
 module.exports = class PartyBot {
-    constructor(bot) {
-        this.bot = bot;
+    constructor(telegraf) {
+        this.bot = telegraf;
     }
     
     init() {
