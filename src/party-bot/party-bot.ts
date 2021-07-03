@@ -13,19 +13,19 @@ export class PartyBot {
     }
 
     private initCommands() {
-        this.bot.start(ctx => ctx.reply('Hello from party bot! Lets get drunk!', this.getMainMenu()));
+        this.bot.start(ctx => ctx.reply('Hello from party bot! Lets get drunk!', PartyBot.getMainMenu()));
         this.bot.hears('Пользователи', ctx => ctx.reply('Тут будут пользователи'));
         this.bot.hears('Добавить напиток', ctx => ctx.reply('Тут меню добавления напитков'));
-        this.bot.hears('Хватит', ctx => ctx.reply('До встречи! Если что, ты знаешь, где меня найти: /start', this.removeKeyboard()));
+        this.bot.hears('Хватит', ctx => ctx.reply('До встречи! Если что, ты знаешь, где меня найти: /start', PartyBot.removeKeyboard()));
     }
     
-    private getMainMenu() {
+    private static getMainMenu() {
         return Markup.keyboard([
             ['Пользователи', 'Добавить напиток', 'Хватит'],
         ]).resize();
     }
     
-    private removeKeyboard() {
+    private static removeKeyboard() {
         return Markup.removeKeyboard();
     }
 }
