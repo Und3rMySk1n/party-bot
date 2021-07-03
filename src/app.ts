@@ -1,5 +1,5 @@
+import * as express from 'express';
 import { Telegraf } from 'telegraf';
-import { express } from 'express';
 import { PartyBot } from './party-bot/party-bot';
 
 const token = process.env.BOT_TOKEN || '';
