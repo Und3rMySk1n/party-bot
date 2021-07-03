@@ -1,6 +1,6 @@
-const { Telegraf } = require('telegraf');
-const express = require('express');
-const PartyBot = require('./partybot/partybot')
+import { Telegraf } from 'telegraf';
+import { express } from 'express';
+import { PartyBot } from './party-bot/party-bot';
 
 const token = process.env.BOT_TOKEN || '';
 const port = process.env.PORT || 3000;
