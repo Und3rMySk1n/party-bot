@@ -1,72 +1,127 @@
 import { Telegraf, Markup, Context } from 'telegraf';
-import { Buttons } from './buttons';
-import { UsersService } from '../users-service/users-service';
+import { Button } from '../keyboard/button';
+import { PlayerService } from '../players-service/player-service';
 import { User } from 'typegram';
+import { dictionary } from '../dictionary/ru';
+import { GameStateService } from '../game-state-service/game-state-service';
+import { Keyboard } from '../keyboard/keyboard';
+import * as tg from 'typegram';
 
 export class PartyBot {
     private telegraf: Telegraf;
-    private usersService: UsersService;
-    private interval: number = 0;
-    private gameStarted: boolean = false;
-    
-    public constructor(telegraf: Telegraf, usersService: UsersService) {
+    private playersService: PlayerService;
+    private gameStateService: GameStateService;
+
+    public constructor(
+        telegraf: Telegraf,
+        playersService: PlayerService,
+        gameStateService: GameStateService
+    ) {
         this.telegraf = telegraf;
-        this.usersService = usersService;
-    }
-    
-    public init() {
+        this.playersService = playersService;
+        this.gameStateService = gameStateService;
+
         this.initCommands();
         this.telegraf.launch();
     }
 
     private initCommands() {
-        this.telegraf.start(ctx => ctx.reply(`
-                Hello from party bot!
-                Lets get drunk! If you're in, send me "+".
-                If you're out, send me "-" and go home :)
-            `, PartyBot.getStartMenu()));
+        this.telegraf.start(ctx => this.onBotStarted(ctx));
 
-        this.telegraf.hears('+', ctx => ctx.reply(this.addUser(ctx)));
-        this.telegraf.hears('-', ctx => ctx.reply(this.deleteUser(ctx)));
+        this.telegraf.hears(Button.Start, ctx => this.onStartButtonPressed(ctx));
+        this.telegraf.hears(Button.Stop, ctx => this.onStopButtonPressed(ctx));
+        this.telegraf.hears(Button.Settings, ctx => this.onSettingsButtonPressed(ctx));
+        this.telegraf.hears(Button.Info, ctx => this.onInfoButtonPressed(ctx));
+        this.telegraf.hears(Button.Exit, ctx => this.onExitButtonPressed(ctx));
 
-        this.telegraf.hears(Buttons.Start, ctx => ctx.reply('Погнали! И тут кнопка меняется на старт.'));
-        this.telegraf.hears(Buttons.Settings, ctx => ctx.reply('Тут будут настройки. Можно их поменять.'));
-        this.telegraf.hears(Buttons.Info, ctx => ctx.reply('Тут будет текущее состояние: таймер, список напитков и участники'));
-        this.telegraf.hears(Buttons.Exit, ctx => ctx.reply('До встречи! Если что, ты знаешь, где меня найти: /start', PartyBot.removeKeyboard()));
+        // TODO: Unsubscribe after close bot
+        this.telegraf.hears('+', ctx => this.onAddPlayer(ctx));
+        this.telegraf.hears('-', ctx => this.onDeletePlayer(ctx));
     }
 
-    private addUser(ctx: Context): string {
-        const chatId = ctx.message.chat.id;
-        const userName = PartyBot.getUserName(ctx.message.from);
-        this.usersService.addUser(userName);
-        return `Chat: ${chatId} | Пользователь ${userName} в игре!`;
+    private onBotStarted(ctx: Context): Promise<tg.Message.TextMessage> {
+        return this.gameStateService.isGameInitialized(ctx.message.chat.id)
+            .then(initialized => initialized
+                ? this.gameStateService.getGameId(ctx.message.chat.id)
+                : this.initGame(ctx.message.chat.id))
+            .then(gameId => this.gameStateService.isGameStarted(gameId))
+            .then(started => ctx.reply(dictionary.startMessage, PartyBot.getInitialKeyboard(started)));
     }
-    
-    private deleteUser(ctx: Context): string {
-        const userName = PartyBot.getUserName(ctx.message.from);
-        this.usersService.deleteUser(userName);
-        return `Пользователь ${userName} вышел из игры :(`;
+
+    private onStartButtonPressed(ctx: Context): Promise<tg.Message.TextMessage> {
+        return this.gameStateService.getGameId(ctx.message.chat.id)
+            .then(gameId => this.gameStateService.isGameStarted(gameId))
+            .then(gameStarted => gameStarted
+                ? ctx.reply(dictionary.botAlreadyStarted)
+                : this.gameStateService.getGameId(ctx.message.chat.id)
+                    .then(gameId => ctx.reply(dictionary.startGame, this.startGame(gameId))));
     }
-    
-    private static getStartMenu() {
-        return Markup.keyboard([
-            [Buttons.Start, Buttons.Settings, Buttons.Info, Buttons.Exit],
-        ]).resize();
+
+    private onStopButtonPressed(ctx: Context): Promise<tg.Message.TextMessage> {
+        return ctx.reply(dictionary.stopGame, this.stopGame(ctx));
     }
-    
+
+    private onSettingsButtonPressed(ctx: Context): Promise<tg.Message.TextMessage> {
+        return ctx.reply(dictionary.openSettings);
+    }
+
+    private onInfoButtonPressed(ctx: Context): Promise<tg.Message.TextMessage> {
+        return ctx.reply(dictionary.showInfo);
+    }
+
+    private onExitButtonPressed(ctx: Context): Promise<tg.Message.TextMessage> {
+        return ctx.reply(dictionary.stopBot, PartyBot.removeKeyboard())
+    }
+
+    private onAddPlayer(ctx: Context): Promise<tg.Message.TextMessage> {
+        const playerName = PartyBot.getPlayerName(ctx.message.from);
+
+        // TODO: add getMessage() with optional vars
+        return this.playersService.addPlayer(ctx.message.chat.id, ctx.message.from.id, playerName)
+            .then(() => ctx.reply(`Пользователь ${playerName} в игре!`));
+    }
+
+    private onDeletePlayer(ctx: Context) {
+        const playerName = PartyBot.getPlayerName(ctx.message.from);
+
+        // TODO: add getMessage() with optional vars
+        return this.playersService.deletePlayer(ctx.message.chat.id, ctx.message.from.id)
+            .then(() => ctx.reply(`Пользователь ${playerName} вышел из игры :(`));
+    }
+
+    private initGame(chatId: number): Promise<string> {
+        return this.gameStateService.initGame(chatId);
+    }
+
+    private startGame(gameId: string) {
+        this.gameStateService.startGame(gameId);
+        return Markup.keyboard(Keyboard.gameStarted).resize();
+    }
+
+    private stopGame(ctx: Context) {
+        this.gameStateService.stopGame(ctx.message.chat.id);
+        return Markup.keyboard(Keyboard.gameNotStarted).resize();
+    }
+
+    private static getInitialKeyboard(started: boolean) {
+        return started
+            ? Markup.keyboard(Keyboard.gameStarted).resize()
+            : Markup.keyboard(Keyboard.gameNotStarted).resize();
+    }
+
     private static removeKeyboard() {
         return Markup.removeKeyboard();
     }
-    
-    private static getUserName(user: User): string {
-        const firstName = user.first_name;
-        const lastName = user.last_name;
-        const userName = user.username;
-        
+
+    private static getPlayerName(player: User): string {
+        const firstName = player.first_name;
+        const lastName = player.last_name;
+        const playerName = player.username;
+
         if (firstName || lastName) {
             return `${firstName} ${lastName}`;
         }
-        
-        return userName;
+
+        return playerName;
     }
 }
