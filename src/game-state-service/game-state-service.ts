@@ -1,6 +1,12 @@
 import { DbService } from '../db-service/db-service';
 
 export interface GameState {
+    enteringPlayer: boolean;
+    enteringDrink: boolean;
+    enteringTimer: boolean;
+}
+
+export interface GameSettings {
     playersCount: number;
     drinksCount: number;
     gameStart: number;
@@ -9,7 +15,10 @@ export interface GameState {
 
 export class GameStateService {
     private dbService;
-    private defaultTimer = 30 * 1000;
+    private defaultTimer = 5 * 60 * 1000 // 5 minutes;
+
+    private currentGamesMap: Map<number, string> = new Map();
+    private gameStatesMap: Map<string, GameState> = new Map();
 
     constructor(dbService: DbService) {
         this.dbService = dbService;
@@ -17,26 +26,39 @@ export class GameStateService {
 
     public initGame(chatId: number): Promise<string> {
         const gameId = `${chatId}-${Date.now()}`;
-        return this.dbService.addGame(chatId, gameId)
-            .then(() => this.dbService.addInitialGameState(gameId, this.defaultTimer))
+
+        this.currentGamesMap.set(chatId, gameId);
+        this.gameStatesMap.set(gameId, {
+            enteringPlayer: true,
+            enteringDrink: false,
+            enteringTimer: false,
+        });
+
+        return this.dbService.addInitialGameState(gameId, this.defaultTimer)
             .then(() => gameId);
     }
 
-    public startGame(gameId: string): void {
+    public startGame(gameId: string): Promise<void> {
+        this.setState(gameId, { enteringPlayer: false });
         const startTimestamp = Date.now();
-        this.dbService.updateGameStart(gameId, startTimestamp);
+        return this.dbService.updateGameStart(gameId, startTimestamp);
     }
 
-    public stopGame(chatId: number): void {
-        this.dbService.deleteGame(chatId);
+    public stopGame(gameId: string): Promise<void> {
+        this.setState(gameId, { enteringPlayer: true });
+        return this.dbService.deleteGameData(gameId);
+    }
+    
+    public deleteGame(chatId: number): void {
+        this.currentGamesMap.delete(chatId);
     }
 
-    public getGameId(chatId: number): Promise<string> {
-        return this.dbService.getGameId(chatId);
+    public getGameId(chatId: number): string {
+        return this.currentGamesMap.get(chatId);
     }
 
-    public isGameInitialized(chatId: number): Promise<boolean> {
-        return this.dbService.getGameId(chatId).then(gameId => !!gameId);
+    public isGameInitialized(chatId: number): boolean {
+        return this.currentGamesMap.has(chatId);
     }
 
     public isGameStarted(gameId: string): Promise<boolean> {
@@ -47,7 +69,32 @@ export class GameStateService {
             })
     }
 
-    private convertGameStateFromQuery(stateFromQuery: string[]): GameState {
+    public getState(gameId: string): GameState {
+        return this.gameStatesMap.get(gameId);
+    }
+
+    public setState(gameId: string, newState: Partial<GameState>): void {
+        if (!this.gameStatesMap.has(gameId)) {
+            throw Error('No current game with this game id');
+        }
+
+        this.gameStatesMap.set(gameId, {
+            ...this.gameStatesMap.get(gameId),
+            ...newState,
+        })
+    }
+
+    public setTimer(gameId: string, timer: string): Promise<void> {
+        const timerInMs = parseInt(timer, 10) * 60 * 1000;
+        return this.dbService.setTimer(gameId, timerInMs);
+    }
+
+    public getTimer(gameId: string): Promise<number> {
+        return this.dbService.getTimer(gameId)
+            .then(timerInMs => timerInMs / 60 / 1000);
+    }
+
+    private convertGameStateFromQuery(stateFromQuery: string[]): GameSettings {
         return {
             playersCount: parseInt(stateFromQuery[0], 10),
             drinksCount: parseInt(stateFromQuery[1], 10),

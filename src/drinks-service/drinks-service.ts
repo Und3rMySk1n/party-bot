@@ -1,16 +1,34 @@
+import { DbService } from '../db-service/db-service';
+
+export interface DrinkData {
+    id: string;
+    name: string;
+}
+
 export class DrinksService {
-    public getDrinks(): string[] {
-        // TODO: return drinks list
-        return [];
+    private dbService;
+
+    constructor(dbService: DbService) {
+        this.dbService = dbService;
+    }
+
+    public getDrinks(gameId: string): Promise<string[]> {
+        return this.dbService.getDrinks(gameId);
+    }
+
+    public getDrinksWithIds(gameId: string): Promise<DrinkData[]> {
+        return this.dbService.getDrinksWithIds(gameId).then(data => data.map(drinkData => ({
+            id: drinkData[0],
+            name: drinkData[1],
+        })));
     }
     
-    public clearDrinksList(): void {
-        // TODO: clear drinks list
-        return;
+    public addDrink(gameId: string, drinkName: string): Promise<void> {
+        const drinkId = `${gameId}-${Date.now()}`;
+        return this.dbService.addDrink(gameId, drinkId, drinkName);
     }
-    
-    public addDrink(drinkName: string): void {
-        // TODO: add drink
-        return;
+
+    public clearDrinksList(gameId: string): Promise<void> {
+        return this.dbService.clearDrinksList(gameId);
     }
 }
