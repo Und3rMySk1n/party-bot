@@ -13,6 +13,7 @@ export const dictionary = {
     canNotDeleteUser: 'Заднюю дать решил? Сейчас не получится',
     enterDrinkName: 'Введите название напитка',
     drinkEntered: 'Напиток добавлен',
+    drinkAlreadyExists: 'Такое уже есть, введи что-нибудь другое',
     drinksCleared: 'Список напитков пуст',
     enterTimer: 'Введите время в минутах',
     timerEntered: 'Таймер обновлен',
@@ -21,7 +22,18 @@ export const dictionary = {
     playersTitle: 'Игроки',
     noPlayersInGame: 'Пока ни одного игрока. Где все, народ?',
     timerTitle: 'Таймер выставлен на',
-    minutes: 'минут',
     statsTitle: 'Кто уже накатил',
     noStats: 'Пока тихо, видимо, все только начинается?',
+    userInGame: 'Пользователь %playerName% в игре!',
+    userLeftGame: 'Пользователь %playerName% вышел из игры :(',
+    userDrinks: '%playerName% пьет напиток: %drinkName%!',
+    youAreAlreadyInGame: '%playerName%, ты и так в игре, трубы горят?',
+    youAreNotInGame: '%playerName%, тебя тут и не было',
+    plural: {
+        minutes: {
+            one: 'минуту',
+            few: 'минуты',
+            other: 'минут',
+        },
+    },
 };

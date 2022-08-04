@@ -1,6 +1,4 @@
-import { DbService } from '../db-service/db-service';
-import { PlayerData, PlayerService } from '../players-service/player-service';
-import { DrinkData, DrinksService } from '../drinks-service/drinks-service';
+import { DbService, DrinkData, PlayerData } from '../db-service/db-service';
 
 export interface DrinksStats {
     drinkName: string;
@@ -12,29 +10,21 @@ export interface PlayerStats {
     drinks: DrinksStats[];
 }
 
-export class GameStatsService {
+export class GameStatisticsService {
     private dbService;
-    private playersService: PlayerService;
-    private drinksService: DrinksService;
 
-    constructor(
-        dbService: DbService,
-        playersService: PlayerService,
-        drinksService: DrinksService
-    ) {
+    constructor(dbService: DbService) {
         this.dbService = dbService;
-        this.playersService = playersService;
-        this.drinksService = drinksService;
     }
 
-    public addPlayerWithDrink(gameId: string, playerId: number, drinkId: string): Promise<void> {
+    public addPlayerWithDrink(gameId: string, playerId: string, drinkId: string): Promise<void> {
         return this.dbService.addPlayerWithDrink(gameId, playerId, drinkId);
     }
 
     public getGameStats(gameId: string): Promise<PlayerStats[]> {
         return Promise.all([
-            this.playersService.getPlayersWithIds(gameId),
-            this.drinksService.getDrinksWithIds(gameId),
+            this.dbService.getPlayersWithIds(gameId),
+            this.dbService.getDrinksWithIds(gameId),
             this.dbService.getStats(gameId),
         ])
             .then(data => {
@@ -50,7 +40,7 @@ export class GameStatsService {
         const playerStats: PlayerStats[] = [];
 
         stats.forEach(stat => {
-            const playerId = parseInt(stat[0], 10);
+            const playerId = stat[0];
             const player = players.find(p => p.id === playerId);
 
             const drinkId = stat[1];

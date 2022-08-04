@@ -1,11 +1,11 @@
 import * as express from 'express';
 import { Telegraf } from 'telegraf';
 import { PartyBot } from './party-bot/party-bot';
-import {PlayerService} from "./players-service/player-service";
-import {DbService} from "./db-service/db-service";
-import { GameStateService } from './game-state-service/game-state-service';
-import { DrinksService } from './drinks-service/drinks-service';
-import { GameStatsService } from './game-stats-service/game-stats-service';
+import {PlayerService} from "./party-bot/services/players-service/player-service";
+import {DbService} from "./party-bot/services/db-service/db-service";
+import { GameStateService } from './party-bot/services/game-state-service/game-state-service';
+import { DrinksService } from './party-bot/services/drinks-service/drinks-service';
+import { GameStatisticsService } from './party-bot/services/game-statistics-service/game-statistics-service';
 
 const token = process.env.BOT_TOKEN;
 const port = process.env.PORT;
@@ -17,16 +17,17 @@ if (!token || !port || !appUrl) {
 
 const app = express();
 const telegraf = new Telegraf(token);
+
 const dbService = new DbService();
 const playersService = new PlayerService(dbService);
 const drinksService = new DrinksService(dbService);
 const gameStateService = new GameStateService(dbService);
-const gameStatsService = new GameStatsService(dbService, playersService, drinksService);
+const gameStatisticsService = new GameStatisticsService(dbService);
 
 telegraf.telegram.setWebhook(`${appUrl}/bot${token}`);
 app.use(telegraf.webhookCallback(`/bot${token}`));
 
-const partyBot = new PartyBot(telegraf, playersService, drinksService, gameStateService, gameStatsService);
+const partyBot = new PartyBot(telegraf, playersService, drinksService, gameStateService, gameStatisticsService);
 
 // Enable graceful stop
 process.once('SIGINT', () => telegraf.stop('SIGINT'));

@@ -1,9 +1,4 @@
-import { DbService } from '../db-service/db-service';
-
-export interface DrinkData {
-    id: string;
-    name: string;
-}
+import { DbService, DrinkData } from '../db-service/db-service';
 
 export class DrinksService {
     private dbService;
@@ -17,10 +12,7 @@ export class DrinksService {
     }
 
     public getDrinksWithIds(gameId: string): Promise<DrinkData[]> {
-        return this.dbService.getDrinksWithIds(gameId).then(data => data.map(drinkData => ({
-            id: drinkData[0],
-            name: drinkData[1],
-        })));
+        return this.dbService.getDrinksWithIds(gameId);
     }
     
     public addDrink(gameId: string, drinkName: string): Promise<void> {

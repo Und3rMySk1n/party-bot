@@ -1,21 +1,23 @@
 import { Telegraf, Markup, Context } from 'telegraf';
-import { Button } from '../keyboard-service/button';
-import { PlayerData, PlayerService } from '../players-service/player-service';
+import { Button } from './services/keyboard-service/button';
+import { PlayerService } from './services/players-service/player-service';
 import { User } from 'typegram';
 import { dictionary } from '../dictionary/ru';
-import { GameStateService } from '../game-state-service/game-state-service';
-import { Keyboard } from '../keyboard-service/keyboard';
+import { GameStateService } from './services/game-state-service/game-state-service';
+import { Keyboard } from './services/keyboard-service/keyboard';
 import * as tg from 'typegram';
-import { KeyboardService } from '../keyboard-service/keyboard-service';
-import { DrinkData, DrinksService } from '../drinks-service/drinks-service';
-import { GameStatsService, PlayerStats } from '../game-stats-service/game-stats-service';
+import { KeyboardService } from './services/keyboard-service/keyboard-service';
+import { DrinksService } from './services/drinks-service/drinks-service';
+import { GameStatisticsService, PlayerStats } from './services/game-statistics-service/game-statistics-service';
+import { getMessage, plural } from '../dictionary/utils';
+import { DrinkData, PlayerData } from './services/db-service/db-service';
 
 export class PartyBot {
     private telegraf: Telegraf;
     private playersService: PlayerService;
     private drinksService: DrinksService;
     private gameStateService: GameStateService;
-    private gameStatsService: GameStatsService;
+    private gameStatisticsService: GameStatisticsService;
 
     private timers: Map<string, ReturnType<typeof setInterval>> = new Map();
 
@@ -24,13 +26,13 @@ export class PartyBot {
         playersService: PlayerService,
         drinksService: DrinksService,
         gameStateService: GameStateService,
-        gameStatsService: GameStatsService
+        gameStatisticsService: GameStatisticsService,
     ) {
         this.telegraf = telegraf;
         this.playersService = playersService;
         this.drinksService = drinksService;
         this.gameStateService = gameStateService;
-        this.gameStatsService = gameStatsService;
+        this.gameStatisticsService = gameStatisticsService;
 
         this.initCommands();
         this.telegraf.launch();
@@ -59,8 +61,15 @@ export class PartyBot {
 
             if (enteringDrink) {
                 this.gameStateService.setState(gameId, { enteringDrink: false });
-                return this.drinksService.addDrink(gameId, ctx.update.message.text)
-                    .then(() => ctx.reply(dictionary.drinkEntered));
+                return this.drinksService.getDrinks(gameId)
+                    .then(drinks => {
+                        if (drinks.includes(ctx.update.message.text)) {
+                            return ctx.reply(dictionary.drinkAlreadyExists);
+                        }
+
+                        return this.drinksService.addDrink(gameId, ctx.update.message.text)
+                            .then(() => ctx.reply(dictionary.drinkEntered))
+                    });
             }
 
             if (enteringTimer) {
@@ -85,10 +94,31 @@ export class PartyBot {
     private onStartButtonPressed(ctx: Context): Promise<tg.Message.TextMessage> {
         const gameId = this.gameStateService.getGameId(ctx.message.chat.id);
         return this.gameStateService.isGameStarted(gameId)
-            .then(gameStarted => gameStarted
-                ? ctx.reply(dictionary.botAlreadyStarted)
-                : this.startGame(ctx)
-                    .then(() => ctx.reply(dictionary.startGame, KeyboardService.getGameStartedKeyboard())));
+            .then(gameStarted => {
+                if (gameStarted) {
+                    return ctx.reply(dictionary.botAlreadyStarted);
+                }
+
+                return Promise.all([
+                    this.playersService.getPlayers(gameId),
+                    this.drinksService.getDrinks(gameId),
+                ])
+                    .then(data => {
+                        const players = data[0];
+                        const drinks = data[1];
+
+                        if (!players.length) {
+                            return ctx.reply(dictionary.noPlayersInGame);
+                        }
+
+                        if (!drinks.length) {
+                            return ctx.reply(dictionary.noDrinksInGame);
+                        }
+
+                        return this.startGame(ctx)
+                            .then(() => ctx.reply(dictionary.startGame, KeyboardService.getGameStartedKeyboard()));
+                    });
+            });
     }
 
     private onStopButtonPressed(ctx: Context): Promise<tg.Message.TextMessage> {
@@ -161,7 +191,6 @@ export class PartyBot {
             ? players.map(player => `- ${player}`).join('\n')
             : dictionary.noPlayersInGame;
 
-        // TODO: add pluralization
         return `
 ${title}
 
@@ -172,14 +201,14 @@ ${dictionary.drinksTitle}:
 ${drinksAsString}
 
 ${dictionary.timerTitle}:
-${timer} ${dictionary.minutes}
-        `;
+${timer} ${plural(timer, dictionary.plural.minutes)}
+`;
     }
 
     private onStatsButtonPressed(ctx: Context): Promise<tg.Message.TextMessage> {
         const gameId = this.gameStateService.getGameId(ctx.message.chat.id);
 
-        return this.gameStatsService.getGameStats(gameId)
+        return this.gameStatisticsService.getGameStats(gameId)
             .then(stats => this.prepareStatsMessage(stats))
             .then(statsMessage => ctx.reply(statsMessage));
     }
@@ -214,9 +243,15 @@ ${statsMessage}`;
 
         const playerName = PartyBot.getPlayerName(ctx.message.from);
 
-        // TODO: add getMessage() with optional vars
-        return this.playersService.addPlayer(gameId, ctx.message.from.id, playerName)
-            .then(() => ctx.reply(`Пользователь ${playerName} в игре!`));
+        return this.playersService.getPlayers(gameId)
+            .then(players => {
+                if (players.includes(playerName)) {
+                    return ctx.reply(getMessage(dictionary.youAreAlreadyInGame, { playerName: playerName }));
+                }
+
+                return this.playersService.addPlayer(gameId, ctx.message.from.id, playerName)
+                    .then(() => ctx.reply(getMessage(dictionary.userInGame, { playerName: playerName })))
+            });
     }
 
     private onDeletePlayer(ctx: Context) {
@@ -224,14 +259,19 @@ ${statsMessage}`;
         const { enteringPlayer } = this.gameStateService.getState(gameId);
 
         if (!enteringPlayer) {
-            ctx.reply(dictionary.canNotDeleteUser)
+            return ctx.reply(dictionary.canNotDeleteUser);
         }
 
         const playerName = PartyBot.getPlayerName(ctx.message.from);
+        return this.playersService.getPlayers(gameId)
+            .then(players => {
+                if (!players.includes(playerName)) {
+                    return ctx.reply(getMessage(dictionary.youAreNotInGame, { playerName: playerName }));
+                }
 
-        // TODO: add getMessage() with optional vars
-        return this.playersService.deletePlayer(ctx.message.from.id)
-            .then(() => ctx.reply(`Пользователь ${playerName} вышел из игры :(`));
+                return this.playersService.deletePlayer(gameId, ctx.message.from.id)
+                    .then(() => ctx.reply(getMessage(dictionary.userLeftGame, { playerName: playerName })));
+            });
     }
 
     private startGame(ctx: Context) {
@@ -255,7 +295,10 @@ ${statsMessage}`;
         const playerName = player.username;
 
         if (firstName || lastName) {
-            return `${firstName} ${lastName}`;
+            const checkedFirstName = firstName || '';
+            const checkedLastName = lastName || '';
+
+            return [checkedFirstName, checkedLastName].join(' ');
         }
 
         return playerName;
@@ -291,9 +334,11 @@ ${statsMessage}`;
         const randomDrinkIndex = Math.floor(Math.random() * drinks.length);
         const randomDrink = drinks[randomDrinkIndex];
 
-        // TODO: add getMessage() with optional vars
-        const drinkMessage = `${randomPlayer.name} пьет напиток: ${randomDrink.name}!`;
-        return this.gameStatsService.addPlayerWithDrink(gameId, randomPlayer.id, randomDrink.id)
+        const drinkMessage = getMessage(dictionary.userDrinks, {
+            playerName: randomPlayer.name,
+            drinkName: randomDrink.name,
+        });
+        return this.gameStatisticsService.addPlayerWithDrink(gameId, randomPlayer.id, randomDrink.id)
             .then(() => ctx.reply(drinkMessage));
     }
 }

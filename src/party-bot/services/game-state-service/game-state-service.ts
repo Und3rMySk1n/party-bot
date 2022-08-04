@@ -7,8 +7,6 @@ export interface GameState {
 }
 
 export interface GameSettings {
-    playersCount: number;
-    drinksCount: number;
     gameStart: number;
     timer: number;
 }
@@ -96,8 +94,6 @@ export class GameStateService {
 
     private convertGameStateFromQuery(stateFromQuery: string[]): GameSettings {
         return {
-            playersCount: parseInt(stateFromQuery[0], 10),
-            drinksCount: parseInt(stateFromQuery[1], 10),
             gameStart: parseInt(stateFromQuery[2], 10),
             timer: parseInt(stateFromQuery[3], 10),
         };

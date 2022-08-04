@@ -1,5 +1,15 @@
 import { Client, Query } from 'ts-postgres';
 
+export interface PlayerData {
+    id: string;
+    name: string;
+}
+
+export interface DrinkData {
+    id: string;
+    name: string;
+}
+
 export class DbService {
     private client;
     private connected;
@@ -38,13 +48,13 @@ export class DbService {
             [gameId]
         );
 
-        const deleteStatsQuery = new Query(
-            "DELETE FROM gamestats WHERE gameId = $1",
+        const deleteStatisticsQuery = new Query(
+            "DELETE FROM gamestats WHERE gameid = $1",
             [gameId]
         );
 
         const deleteStateQuery = new Query(
-            "DELETE FROM gamestate WHERE gameId = $1",
+            "DELETE FROM gamestate WHERE gameid = $1",
             [gameId]
         );
 
@@ -53,7 +63,7 @@ export class DbService {
             .then(() => this.client.execute(deleteDrinksInGameQuery))
             .then(() => this.client.execute(deletePlayersQuery))
             .then(() => this.client.execute(deletePlayersInGameQuery))
-            .then(() => this.client.execute(deleteStatsQuery))
+            .then(() => this.client.execute(deleteStatisticsQuery))
             .then(() => this.client.execute(deleteStateQuery));
     }
 
@@ -74,10 +84,11 @@ export class DbService {
             [gameId]
         );
 
-        return this.connected.then(() => this.client.execute(query)).then(result => result.rows);
+        return this.connected.then(() => this.client.execute(query))
+            .then(result => result.rows.flat().map(playerName => playerName.trim()));
     }
 
-    public getPlayersWithIds(gameId: string): Promise<any> {
+    public getPlayersWithIds(gameId: string): Promise<PlayerData[]> {
         const query = new Query(
             `SELECT player.playerid, player.playername
                   FROM player
@@ -86,17 +97,21 @@ export class DbService {
             [gameId]
         );
 
-        return this.connected.then(() => this.client.execute(query)).then(result => result.rows);
+        return this.connected.then(() => this.client.execute(query))
+            .then(result => result.rows.map(playerData => ({
+                id: playerData[0],
+                name: playerData[1],
+            })));
     }
 
-    public addPlayer(gameId: string, playerId: number, playerName: string): Promise<void> {
+    public addPlayer(gameId: string, playerId: string, playerName: string): Promise<void> {
         const addPlayerInGameQuery = new Query(
-            "INSERT INTO playeringame VALUES ($1, $2)",
+            "INSERT INTO playeringame (gameid, playerid) VALUES ($1, $2)",
             [gameId, playerId]
         );
 
         const addPlayerQuery = new Query(
-            "INSERT INTO player VALUES ($1, $2)",
+            "INSERT INTO player (playerid, playername) VALUES ($1, $2)",
             [playerId, playerName]
         );
 
@@ -104,7 +119,7 @@ export class DbService {
             .then(() => this.client.execute(addPlayerQuery));
     }
 
-    public deletePlayer(playerId: number): Promise<void> {
+    public deletePlayer(playerId: string): Promise<void> {
         const deletePlayerInGameQuery = new Query(
             "DELETE FROM playeringame WHERE playerid = $1",
             [playerId]
@@ -128,10 +143,11 @@ export class DbService {
             [gameId]
         );
 
-        return this.connected.then(() => this.client.execute(query)).then(result => result.rows.flat());
+        return this.connected.then(() => this.client.execute(query))
+            .then(result => result.rows.flat().map(drinkName => drinkName.trim()));
     }
 
-    public getDrinksWithIds(gameId: string): Promise<any> {
+    public getDrinksWithIds(gameId: string): Promise<DrinkData[]> {
         const query = new Query(
             `SELECT drink.drinkid, drink.drinkname FROM drink
                   INNER JOIN drinkingame ON drinkingame.drinkid = drink.drinkid
@@ -140,17 +156,21 @@ export class DbService {
             [gameId]
         );
 
-        return this.connected.then(() => this.client.execute(query)).then(result => result.rows);
+        return this.connected.then(() => this.client.execute(query))
+            .then(result => result.rows.map(drinkData => ({
+                id: drinkData[0],
+                name: drinkData[1],
+            })));
     }
 
     public addDrink(gameId: string, drinkId: number, drinkName: string): Promise<void> {
         const addDrinkInGameQuery = new Query(
-            "INSERT INTO drinkingame VALUES ($1, $2)",
+            "INSERT INTO drinkingame (gameid, drinkid) VALUES ($1, $2)",
             [gameId, drinkId]
         );
 
         const addDrinkQuery = new Query(
-            "INSERT INTO drink VALUES ($1, $2)",
+            "INSERT INTO drink (drinkid, drinkname) VALUES ($1, $2)",
             [drinkId, drinkName]
         );
 
@@ -178,9 +198,9 @@ export class DbService {
         const query = new Query(
             `
                   INSERT INTO gamestate
-                  (gameid, playerscount, drinkscount, gamestart, timer)
+                  (gameid, gamestart, timer)
                   VALUES
-                  ($1, 0, 0, NULL, $2)
+                  ($1, NULL, $2)
                   `,
             [gameId, timer]
         );
@@ -189,7 +209,7 @@ export class DbService {
 
     public getGameState(gameId: string): Promise<string[]> {
         const query = new Query(
-            "SELECT (playerscount, drinkscount, gamestart, timer) FROM gamestate WHERE gameid = $1",
+            "SELECT gamestart, timer FROM gamestate WHERE gameid = $1",
             [gameId]
         );
         return this.connected.then(() => this.client.execute(query));
@@ -221,7 +241,7 @@ export class DbService {
             .then(result => parseInt(result.rows[0][0], 10));
     }
 
-    public addPlayerWithDrink(gameId: string, playerId: number, drinkId: string): Promise<void> {
+    public addPlayerWithDrink(gameId: string, playerId: string, drinkId: string): Promise<void> {
         const query = new Query(
             "INSERT INTO gamestats (gameid, playerid, drinkid) VALUES ($1, $2, $3)",
             [gameId, playerId, drinkId]
